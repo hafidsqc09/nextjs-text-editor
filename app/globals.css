@@ -134,11 +134,25 @@
 
 .ck-content ul,
 .ck-content ol,
+.tiptap ul,
+.tiptap ol,
 .ck.ck-content ul,
 .ck.ck-content ol {
   padding-left: 2.5rem !important;
   margin-top: 0.5rem !important;
   margin-bottom: 0.5rem !important;
+}
+
+.ck-content ol,
+.tiptap ol,
+.ck.ck-content ol {
+  list-style: decimal;
+}
+
+.ck-content ul,
+.tiptap ul,
+.ck.ck-content ul {
+  list-style: disc;
 }
 
 .ck-content ul[type="circle"],
@@ -172,6 +186,7 @@
 }
 
 .ck-content h1,
+.tiptap h1,
 .ce-block h1 {
   font-size: 2.25rem;
   font-weight: 800;
@@ -179,6 +194,7 @@
 }
 
 .ck-content h2,
+.tiptap h2,
 .ce-block h2 {
   font-size: 1.875rem;
   font-weight: 700;
@@ -186,6 +202,7 @@
 }
 
 .ck-content h3,
+.tiptap h3,
 .ce-block h3 {
   font-size: 1.5rem;
   font-weight: 600;
@@ -193,6 +210,7 @@
 }
 
 .ck-content h4,
+.tiptap h4,
 .ce-block h4 {
   font-size: 1.25rem;
   font-weight: 600;
