@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/*@import "tailwindcss/theme" layer(theme);*/
+/*@import "tailwindcss/utilities" layer(utilities);*/
+/*@import "tailwindcss/preflight" layer(base);*/
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -166,4 +169,60 @@
 .ck-content ol[type="A"],
 .ck.ck-content ol[type="A"] {
   list-style-type: upper-alpha !important;
+}
+
+.ck-content h1,
+.ce-block h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.ck-content h2,
+.ce-block h2 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.ck-content h3,
+.ce-block h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.ck-content h4,
+.ce-block h4 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.codex-editor__redactor {
+  padding-bottom: 100px !important;
+}
+
+.image-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.image-tool__image {
+  max-width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.image-tool__image-picture {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.embed-tool iframe {
+  width: 100%;
+  min-height: 320px;
+  border: 0;
+  border-radius: 6px;
 }
