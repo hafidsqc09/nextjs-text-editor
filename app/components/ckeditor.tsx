@@ -99,6 +99,10 @@ const CKEditorComponent = () => {
     <CKEditor
       editor={ClassicEditor}
       data="<p>CKEditor</p>"
+      onChange={(event, editor) => {
+        const data = editor.getData();
+        console.log("CKEditor Content Changed:", data);
+      }}
       config={{
         licenseKey: "GPL",
         heading: {

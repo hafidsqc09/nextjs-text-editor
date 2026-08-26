@@ -62,8 +62,11 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
         holder: `editorjs-${holderId}`,
         data: data,
         async onChange(api) {
+          const outputData = await api.saver.save();
+
+          console.log("Editor.js Content Changed:", outputData);
+
           if (onChange) {
-            const outputData = await api.saver.save();
             onChange(outputData);
           }
         },
@@ -236,7 +239,7 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
   }, []);
 
   return (
-    <div className="prose max-w-none border rounded-md p-4 bg-background [&_.embed-tool]:w-full [&_img]:max-w-full [&_img]:h-auto">
+    <div className="prose border rounded-md p-4 bg-background [&_.embed-tool]:w-full [&_img]:max-w-full [&_img]:h-auto">
       <div id={`editorjs-${holderId}`} />
     </div>
   );

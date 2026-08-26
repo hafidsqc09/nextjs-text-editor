@@ -135,6 +135,13 @@ const TiptapEditor = () => {
   const editor = useEditor({
     immediatelyRender: false,
     content: "<p>Tiptap</p>",
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      console.log("Tiptap Content Changed (HTML):", html);
+
+      const json = editor.getJSON();
+      console.log("Tiptap Content Changed (JSON):", json);
+    },
     extensions: [
       StarterKit.configure({
         heading: {

@@ -89,7 +89,19 @@ export default function BlockNoteEditor() {
 
   return (
     <div className="w-full border rounded-md p-2">
-      <BlockNoteView editor={editor} theme="light" />
+      <BlockNoteView
+        editor={editor}
+        theme="light"
+        onChange={() => {
+          console.log("Document changed via view:", editor.document);
+
+          const getHtml = async () => console.log("HTML", editor.blocksToHTMLLossy());
+          getHtml().then(() => {});
+
+          const getMarkdown = async () => console.log("MD", editor.blocksToMarkdownLossy());
+          getMarkdown().then(() => {});
+        }}
+      />
     </div>
   );
 }
