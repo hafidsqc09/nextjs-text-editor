@@ -42,6 +42,9 @@ import {
   ImageTextAlternative,
   LinkImage,
   ListProperties,
+  PasteFromOffice,
+  GeneralHtmlSupport,
+  FontFamily,
 } from "ckeditor5";
 import "ckeditor5/ckeditor5.css";
 
@@ -93,163 +96,189 @@ function CustomUploadAdapterPlugin(editor: any) {
 
 const CKEditorComponent = () => {
   return (
-    <div className="ck-custom-wrapper">
-      <CKEditor
-        editor={ClassicEditor}
-        data="<p>CKEditor</p>"
-        config={{
-          licenseKey: "GPL",
-          heading: {
-            options: [
-              { model: "paragraph", title: "Paragraph", class: "ck-heading_paragraph" },
-              { model: "heading1", view: "h1", title: "Heading 1", class: "ck-heading_heading1" },
-              { model: "heading2", view: "h2", title: "Heading 2", class: "ck-heading_heading2" },
-              { model: "heading3", view: "h3", title: "Heading 3", class: "ck-heading_heading3" },
-              { model: "heading4", view: "h4", title: "Heading 4", class: "ck-heading_heading4" },
-              { model: "heading5", view: "h5", title: "Heading 5", class: "ck-heading_heading5" },
-              { model: "heading6", view: "h6", title: "Heading 6", class: "ck-heading_heading6" },
-            ]
-          },
-          fontSize: {
-            options: [
-              "10px",
-              "11px",
-              "12px",
-              "13px",
-              "14px"
-            ]
-          },
-          extraPlugins: [CustomUploadAdapterPlugin],
-          plugins: [
-            Essentials,
-            Paragraph,
-            Bold,
-            Italic,
-            Underline,
-            Alignment,
-            Heading,
-            FontSize,
-            Link,
-            List,
-            CodeBlock,
-            Table,
-            TableToolbar,
-            TableProperties,
-            TableCellProperties,
-            TableCaption,
-            MediaEmbed,
-            Strikethrough,
-            Subscript,
-            Superscript,
-            BlockQuote,
-            Highlight,
-            FontBackgroundColor,
-            FontColor,
-            Indent,
-            ImageUpload,
-            ImageInsert,
-            Image,
-            ImageToolbar,
-            ImageStyle,
-            ImageCaption,
-            ImageTextAlternative,
-            LinkImage,
-            ListProperties,
+    <CKEditor
+      editor={ClassicEditor}
+      data="<p>CKEditor</p>"
+      config={{
+        licenseKey: "GPL",
+        heading: {
+          options: [
+            { model: "paragraph", title: "Paragraph", class: "ck-heading_paragraph" },
+            { model: "heading1", view: "h1", title: "Heading 1", class: "ck-heading_heading1" },
+            { model: "heading2", view: "h2", title: "Heading 2", class: "ck-heading_heading2" },
+            { model: "heading3", view: "h3", title: "Heading 3", class: "ck-heading_heading3" },
+            { model: "heading4", view: "h4", title: "Heading 4", class: "ck-heading_heading4" },
+            { model: "heading5", view: "h5", title: "Heading 5", class: "ck-heading_heading5" },
+            { model: "heading6", view: "h6", title: "Heading 6", class: "ck-heading_heading6" },
+          ]
+        },
+        fontSize: {
+          options: [
+            "10px",
+            "11px",
+            "12px",
+            "13px",
+            "14px"
+          ]
+        },
+        fontFamily: {
+          options: [
+            "default",
+            "Arial, Helvetica, sans-serif",
+            "Courier New, Courier, monospace",
+            "Georgia, serif",
+            "Lucida Sans Unicode, Lucida Grande, sans-serif",
+            "Tahoma, Geneva, sans-serif",
+            "Times New Roman, Times, serif",
+            "Trebuchet MS, Helvetica, sans-serif",
+            "Verdana, Geneva, sans-serif",
+            "Calibri, Carlito, pt-sans, sans-serif",
           ],
+          supportAllValues: true,
+        },
+        extraPlugins: [CustomUploadAdapterPlugin],
+        plugins: [
+          Essentials,
+          Paragraph,
+          Bold,
+          Italic,
+          Underline,
+          Alignment,
+          Heading,
+          FontSize,
+          Link,
+          List,
+          CodeBlock,
+          Table,
+          TableToolbar,
+          TableProperties,
+          TableCellProperties,
+          TableCaption,
+          MediaEmbed,
+          Strikethrough,
+          Subscript,
+          Superscript,
+          BlockQuote,
+          Highlight,
+          FontBackgroundColor,
+          FontColor,
+          Indent,
+          ImageUpload,
+          ImageInsert,
+          Image,
+          ImageToolbar,
+          ImageStyle,
+          ImageCaption,
+          ImageTextAlternative,
+          LinkImage,
+          ListProperties,
+          PasteFromOffice,
+          GeneralHtmlSupport,
+          FontFamily,
+        ],
+        htmlSupport: {
+          allow: [
+            {
+              name: /.*/,
+              attributes: true,
+              classes: true,
+              styles: true,
+            },
+          ],
+        },
+        toolbar: [
+          "heading", "|",
+          "imageUpload", "|",
+          "alignment", "|",
+          "fontFamily", "fontSize", "|",
+          "bold", "italic", "underline", "|",
+          "link", "|",
+          "bulletedList", "numberedList", "|",
+          "codeBlock", "|",
+          "insertTable", "|",
+          "blockQuote", "|",
+          "undo", "redo", "|",
+          "outdent", "indent", "|",
+          "highlight", "fontBackgroundColor", "fontColor", "|",
+          "strikethrough", "subscript", "superscript", "|",
+          "mediaEmbed",
+        ],
+        table: {
+          contentToolbar: [
+            "tableColumn",
+            "tableRow",
+            "mergeTableCells",
+            "tableProperties",
+            "tableCellProperties",
+            "tableCaption"
+          ],
+        },
+        link: {
+          decorators: {
+            openInNewTab: {
+              mode: "manual",
+              label: "Open in New Tab",
+              attributes: {
+                target: "_blank",
+              },
+            },
+            noFollow: {
+              mode: "manual",
+              label: "No Follow",
+              attributes: {
+                rel: "nofollow",
+              },
+            },
+            noReferrer: {
+              mode: "manual",
+              label: "No Referrer",
+              attributes: {
+                rel: "noreferrer",
+              },
+            },
+            noOpener: {
+              mode: "manual",
+              label: "No Opener",
+              attributes: {
+                rel: "noopener",
+              },
+            },
+            useCustomClass: {
+              mode: "manual",
+              label: "Use Custom Class",
+              attributes: {
+                class: "custom-class",
+              },
+            },
+          },
+        },
+        image: {
           toolbar: [
-            "heading", "|",
-            "imageUpload", "|",
-            "alignment", "|",
-            "fontSize", "|",
-            "bold", "italic", "underline", "|",
-            "link", "|",
-            "bulletedList", "numberedList", "|",
-            "codeBlock", "|",
-            "insertTable", "|",
-            "blockQuote", "|",
-            "undo", "redo", "|",
-            "outdent", "indent", "|",
-            "highlight", "fontBackgroundColor", "fontColor", "|",
-            "strikethrough", "subscript", "superscript", "|",
-            "mediaEmbed",
-          ],
-          table: {
-            contentToolbar: [
-              "tableColumn",
-              "tableRow",
-              "mergeTableCells",
-              "tableProperties",
-              "tableCellProperties",
-              "tableCaption"
-            ],
-          },
-          link: {
-            decorators: {
-              openInNewTab: {
-                mode: "manual",
-                label: "Open in New Tab",
-                attributes: {
-                  target: "_blank",
-                },
-              },
-              noFollow: {
-                mode: "manual",
-                label: "No Follow",
-                attributes: {
-                  rel: "nofollow",
-                },
-              },
-              noReferrer: {
-                mode: "manual",
-                label: "No Referrer",
-                attributes: {
-                  rel: "noreferrer",
-                },
-              },
-              noOpener: {
-                mode: "manual",
-                label: "No Opener",
-                attributes: {
-                  rel: "noopener",
-                },
-              },
-              useCustomClass: {
-                mode: "manual",
-                label: "Use Custom Class",
-                attributes: {
-                  class: "custom-class",
-                },
-              },
+            "imageStyle:alignLeft",
+            "imageStyle:alignCenter",
+            "imageStyle:alignRight",
+            "|",
+            "imageStyle:block",
+            "imageStyle:side",
+            "|",
+            "toggleImageCaption",
+            "|",
+            "imageTextAlternative",
+            "|",
+            "linkImage"
+          ]
+        },
+        list: {
+          properties: {
+            styles: {
+              useAttribute: true
             },
+            startIndex: true,
+            reversed: true,
           },
-          image: {
-            toolbar: [
-              "imageStyle:alignLeft",
-              "imageStyle:alignCenter",
-              "imageStyle:alignRight",
-              "|",
-              "imageStyle:block",
-              "imageStyle:side",
-              "|",
-              "toggleImageCaption",
-              "|",
-              "imageTextAlternative",
-              "|",
-              "linkImage"
-            ]
-          },
-          list: {
-            properties: {
-              styles: {
-                useAttribute: true
-              },
-              startIndex: true,
-              reversed: true,
-            },
-          },
-        }}
-      />
-    </div>
+        },
+      }}
+    />
   );
 };
 

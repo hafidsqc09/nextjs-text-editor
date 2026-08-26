@@ -131,8 +131,6 @@
 
 .ck-content ul,
 .ck-content ol,
-.ck-custom-wrapper ul,
-.ck-custom-wrapper ol,
 .ck.ck-content ul,
 .ck.ck-content ol {
   padding-left: 2.5rem !important;
@@ -141,37 +139,31 @@
 }
 
 .ck-content ul[type="circle"],
-.ck-custom-wrapper ul[type="circle"],
 .ck.ck-content ul[type="circle"] {
   list-style-type: circle !important;
 }
 
 .ck-content ul[type="square"],
-.ck-custom-wrapper ul[type="square"],
 .ck.ck-content ul[type="square"] {
   list-style-type: square !important;
 }
 
 .ck-content ol[type="i"],
-.ck-custom-wrapper ol[type="i"],
 .ck.ck-content ol[type="i"] {
   list-style-type: lower-roman !important;
 }
 
 .ck-content ol[type="I"],
-.ck-custom-wrapper ol[type="I"],
 .ck.ck-content ol[type="I"] {
   list-style-type: upper-roman !important;
 }
 
 .ck-content ol[type="a"],
-.ck-custom-wrapper ol[type="a"],
 .ck.ck-content ol[type="a"] {
   list-style-type: lower-alpha !important;
 }
 
 .ck-content ol[type="A"],
-.ck-custom-wrapper ol[type="A"],
 .ck.ck-content ol[type="A"] {
   list-style-type: upper-alpha !important;
 }
