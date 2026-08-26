@@ -43,17 +43,14 @@ export default function BlockNoteEditor() {
     ],
     uploadFile,
     pasteHandler: ({ event, editor, defaultPasteHandler }) => {
-      console.log("Paste event:", event);
       const items = event.clipboardData?.items;
       if (!items) return defaultPasteHandler();
 
-      for (const file of event.clipboardData?.files) {
-        console.log("File from clipboard:", file.name, file.type, file.size);
-      }
+      // for (const file of event.clipboardData?.files) {
+      // }
 
       const imageFiles: File[] = [];
       for (const item of items) {
-        console.log("Item from clipboard:", item.type, item.kind);
         if (item.type.startsWith("image/")) {
           const file = item.getAsFile();
           if (file) imageFiles.push(file);
