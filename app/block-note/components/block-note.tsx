@@ -48,6 +48,27 @@ function isForeignImageSrc(src: string): boolean {
   return /^https?:\/\//i.test(src) && !(UPLOAD_URL && src.startsWith(UPLOAD_URL));
 }
 
+function isBase64ImageSrc(src: string): boolean {
+  return /^data:image\//i.test(src);
+}
+
+// Any pasted image that isn't already ours — hotlinked from a third-party
+// host, or embedded inline as base64 — should be uploaded straight to our
+// own server instead of staying hotlinked/inline.
+function needsImageUpload(src: string): boolean {
+  return isForeignImageSrc(src) || isBase64ImageSrc(src);
+}
+
+function dataUriToFile(dataUri: string, filenameBase: string): File {
+  const [header, base64] = dataUri.split(",");
+  const mime = /data:(.*?);base64/i.exec(header)?.[1] || "image/png";
+  const binary = atob(base64 ?? "");
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const extension = mime.split("/")[1] ?? "png";
+  return new File([bytes], `${filenameBase}.${extension}`, { type: mime });
+}
+
 // Word/Google Docs represent formatting as presentational `style`/`class`
 // soup on `<span>`/`<font>` elements instead of semantic tags. Converting the
 // styles the editor's own toolbar can express into semantic tags, then
@@ -103,16 +124,17 @@ function cleanOfficePasteDocument(doc: Document) {
 
 // Not limited to Office pastes: any pasted content — Figma, a random web
 // page, another app entirely — can carry `<img>` tags pointing at a
-// third-party host, so those stay hotlinked unless we catch them here too.
-function collectForeignImages(root: ParentNode): HTMLImageElement[] {
-  return Array.from(root.querySelectorAll("img")).filter((img) => isForeignImageSrc(img.getAttribute("src") ?? ""));
+// third-party host or embedding base64 data, so those get uploaded straight
+// to our server unless we catch them here too.
+function collectImagesNeedingUpload(root: ParentNode): HTMLImageElement[] {
+  return Array.from(root.querySelectorAll("img")).filter((img) => needsImageUpload(img.getAttribute("src") ?? ""));
 }
 
-// Re-upload images pasted by URL rather than as embedded files, mutating the
-// existing <img> elements' `src` in place. Routed through our own
-// same-origin proxy route since third-party CDNs don't consistently send
-// Access-Control-Allow-Origin.
-async function reuploadForeignImages(imgElements: HTMLImageElement[]): Promise<number> {
+// Upload every pasted image that isn't already ours, mutating the existing
+// <img> elements' `src` in place. A hotlinked image is fetched through our
+// own same-origin proxy route (third-party CDNs don't consistently send
+// Access-Control-Allow-Origin); a base64 image is decoded directly.
+async function uploadPastedImages(imgElements: HTMLImageElement[]): Promise<number> {
   let failures = 0;
 
   await Promise.all(
@@ -120,17 +142,22 @@ async function reuploadForeignImages(imgElements: HTMLImageElement[]): Promise<n
       const src = img.getAttribute("src") ?? "";
 
       try {
-        const res = await fetch(`/api/fetch-image?url=${encodeURIComponent(src)}`);
-        if (!res.ok) throw new Error("Fetch failed");
+        let file: File;
+        if (isBase64ImageSrc(src)) {
+          file = dataUriToFile(src, "pasted-image");
+        } else {
+          const res = await fetch(`/api/fetch-image?url=${encodeURIComponent(src)}`);
+          if (!res.ok) throw new Error("Fetch failed");
 
-        const blob = await res.blob();
-        const extension = blob.type.split("/")[1] ?? "png";
-        const file = new File([blob], `pasted-image.${extension}`, { type: blob.type || "image/png" });
+          const blob = await res.blob();
+          const extension = blob.type.split("/")[1] ?? "png";
+          file = new File([blob], `pasted-image.${extension}`, { type: blob.type || "image/png" });
+        }
 
         img.setAttribute("src", await uploadFile(file));
       } catch (error) {
         failures++;
-        console.warn("Could not re-upload pasted image, keeping the original URL:", error);
+        console.warn("Could not upload pasted image, keeping the original source:", error);
       }
     })
   );
@@ -160,13 +187,20 @@ function dispatchClipboardPaste(target: HTMLElement, html: string) {
 export default function BlockNoteEditor() {
   const [uploadCount, setUploadCount] = React.useState(0);
   const isUploading = uploadCount > 0;
+  // Set directly (not through the `editable` prop) so it takes effect
+  // synchronously — BlockNote's own paste extension checks `editor.isEditable`
+  // the instant a paste event fires, before React would have a chance to
+  // flush a prop-driven update.
+  const editorRef = React.useRef<ReturnType<typeof useCreateBlockNote> | null>(null);
 
   const handleUploadStart = React.useCallback(() => {
     setUploadCount((count) => count + 1);
+    if (editorRef.current) editorRef.current.isEditable = false;
   }, []);
 
   const handleUploadEnd = React.useCallback(() => {
     setUploadCount((count) => Math.max(0, count - 1));
+    if (editorRef.current) editorRef.current.isEditable = true;
   }, []);
 
   const uploadFileWithProgress = React.useCallback(
@@ -228,6 +262,10 @@ export default function BlockNoteEditor() {
           try {
             const results = await Promise.allSettled(imageFiles.map(uploadFile));
 
+            // Re-enable before inserting — insertBlocks is a programmatic
+            // call, but keeping isEditable true here avoids any ambiguity.
+            editor.isEditable = true;
+
             let successCount = 0;
             let failureCount = 0;
 
@@ -274,8 +312,8 @@ export default function BlockNoteEditor() {
       const isOfficePaste = isOfficePasteHtml(html);
       if (isOfficePaste) cleanOfficePasteDocument(parsedDoc);
 
-      const foreignImages = collectForeignImages(parsedDoc.body);
-      if (!isOfficePaste && foreignImages.length === 0) return defaultPasteHandler();
+      const imagesToUpload = collectImagesNeedingUpload(parsedDoc.body);
+      if (!isOfficePaste && imagesToUpload.length === 0) return defaultPasteHandler();
 
       const pasteTarget = event.target instanceof HTMLElement ? event.target : null;
       if (!pasteTarget) return defaultPasteHandler();
@@ -285,22 +323,24 @@ export default function BlockNoteEditor() {
 
       (async () => {
         try {
-          if (foreignImages.length > 0) {
-            const failures = await reuploadForeignImages(foreignImages);
+          if (imagesToUpload.length > 0) {
+            const failures = await uploadPastedImages(imagesToUpload);
             if (failures > 0) {
               toast.add({
-                title:
-                  failures > 1
-                    ? `Kept ${failures} images linked to their original source.`
-                    : "Kept an image linked to its original source.",
-                description: "It couldn't be re-uploaded to our server, likely due to cross-origin restrictions.",
+                title: failures > 1 ? `Kept ${failures} images as-is.` : "Kept an image as-is.",
+                description: "It couldn't be uploaded to our server.",
                 type: "warning",
               });
             }
           }
 
+          // Re-enable before redispatching — BlockNote's own paste extension
+          // no-ops when the editor isn't editable, which would otherwise
+          // silently swallow this cleaned-up paste.
+          editor.isEditable = true;
           dispatchClipboardPaste(pasteTarget, parsedDoc.body.innerHTML);
         } catch (error) {
+          editor.isEditable = true;
           console.error("Failed to process pasted content:", error);
           toast.add({
             title: "Failed to process pasted content.",
@@ -315,6 +355,10 @@ export default function BlockNoteEditor() {
       return true;
     },
   });
+
+  React.useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   return (
     <div className="relative w-full border rounded-md p-2">
