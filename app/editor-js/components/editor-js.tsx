@@ -6,6 +6,7 @@ import { toast } from "@/components/ui/toast";
 import { UPLOAD_URL, UPLOAD_TOKEN } from "@/lib/utils";
 
 import type { OutputBlockData, OutputData } from "@editorjs/editorjs";
+import { Loader2Icon } from "lucide-react";
 
 interface EditorJSProps {
   data?: OutputData;
@@ -160,6 +161,7 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const holderRef = React.useRef<HTMLDivElement>(null);
   const holderId = React.useId().replace(/:/g, "");
+  const [isUploading, setIsUploading] = React.useState(false);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -380,12 +382,29 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
       event.stopPropagation();
 
       const editor = editorRef.current;
-      const holder = holderRef.current;
-      if (!editor || !holder) return;
+      if (!editor) return;
+
+      // Editor.js resolves the "current block" from the paste event's
+      // target by walking up to the enclosing block element, so the
+      // synthetic paste below must be re-dispatched on the exact node the
+      // user pasted into — dispatching on the holder itself resolves to no
+      // block and Editor.js silently drops the event
+      const pasteTarget = event.target instanceof HTMLElement ? event.target : null;
+
+      setIsUploading(true);
+      // Blur so keystrokes during the upload don't land in the editor. We
+      // avoid Editor.js's own readOnly mode here because it detaches its
+      // paste listener, which the Google Docs path below still needs.
+      pasteTarget?.blur();
 
       if (isGoogleDocsPaste) {
+        if (!pasteTarget) {
+          setIsUploading(false);
+          return;
+        }
+
         cleanGoogleDocsHtml(html)
-          .then((cleanedHtml) => dispatchClipboardPaste(holder, cleanedHtml))
+          .then((cleanedHtml) => dispatchClipboardPaste(pasteTarget, cleanedHtml))
           .catch((error) => {
             console.error("Failed to process Google Docs paste:", error);
             toast.add({
@@ -393,43 +412,48 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
               description: "Please try again.",
               type: "error",
             });
-          });
+          })
+          .finally(() => setIsUploading(false));
         return;
       }
 
       (async () => {
-        const results = await Promise.allSettled(imageFiles.map(uploadImageFile));
+        try {
+          const results = await Promise.allSettled(imageFiles.map(uploadImageFile));
 
-        let insertIndex = editor.blocks.getCurrentBlockIndex();
-        insertIndex = insertIndex >= 0 ? insertIndex + 1 : editor.blocks.getBlocksCount();
+          let insertIndex = editor.blocks.getCurrentBlockIndex();
+          insertIndex = insertIndex >= 0 ? insertIndex + 1 : editor.blocks.getBlocksCount();
 
-        let successCount = 0;
-        let failureCount = 0;
+          let successCount = 0;
+          let failureCount = 0;
 
-        for (const result of results) {
-          if (result.status === "fulfilled") {
-            editor.blocks.insert("image", { file: { url: result.value } }, undefined, insertIndex, true);
-            insertIndex++;
-            successCount++;
-          } else {
-            console.error("Failed to upload pasted image:", result.reason);
-            failureCount++;
+          for (const result of results) {
+            if (result.status === "fulfilled") {
+              editor.blocks.insert("image", { file: { url: result.value } }, undefined, insertIndex, true);
+              insertIndex++;
+              successCount++;
+            } else {
+              console.error("Failed to upload pasted image:", result.reason);
+              failureCount++;
+            }
           }
-        }
 
-        if (successCount > 0) {
-          toast.add({
-            title: successCount > 1 ? `${successCount} images uploaded successfully!` : "Image uploaded successfully!",
-            type: "success",
-          });
-        }
+          if (successCount > 0) {
+            toast.add({
+              title: successCount > 1 ? `${successCount} images uploaded successfully!` : "Image uploaded successfully!",
+              type: "success",
+            });
+          }
 
-        if (failureCount > 0) {
-          toast.add({
-            title: failureCount > 1 ? `Failed to upload ${failureCount} images.` : "Failed to upload image.",
-            description: "Please try again.",
-            type: "error",
-          });
+          if (failureCount > 0) {
+            toast.add({
+              title: failureCount > 1 ? `Failed to upload ${failureCount} images.` : "Failed to upload image.",
+              description: "Please try again.",
+              type: "error",
+            });
+          }
+        } finally {
+          setIsUploading(false);
         }
       })();
     };
@@ -444,9 +468,20 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
   return (
     <div
       ref={containerRef}
-      className="prose border rounded-md p-4 bg-background [&_.embed-tool]:w-full [&_img]:max-w-full [&_img]:h-auto"
+      className="relative prose border rounded-md p-4 bg-background [&_.embed-tool]:w-full [&_img]:max-w-full [&_img]:h-auto"
     >
-      <div id={`editorjs-${holderId}`} ref={holderRef} />
+      <div
+        id={`editorjs-${holderId}`}
+        ref={holderRef}
+        className={isUploading ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}
+      />
+
+      {isUploading && (
+        <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-md bg-background/60 backdrop-blur-[1px]">
+          <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+          <span className="text-sm text-muted-foreground">Uploading…</span>
+        </div>
+      )}
     </div>
   );
 };
