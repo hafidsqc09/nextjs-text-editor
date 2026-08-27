@@ -51,6 +51,92 @@ async function uploadImageFile(file: File): Promise<string> {
   return imageUrl;
 }
 
+// Google Docs marks every copy with this wrapper id — the standard signature
+// used to detect a Google Docs paste (see e.g. docs-internal-guid discussions).
+function isGoogleDocsHtml(html: string): boolean {
+  return html.includes("docs-internal-guid");
+}
+
+// Google Docs represents bold/italic/underline as inline `style` on <span>
+// elements instead of semantic tags, which Editor.js's paste sanitizer drops.
+// Rewriting them to <strong>/<em>/<u> (and re-uploading embedded images,
+// which otherwise stay linked to Google's CDN) lets Editor.js's own paste
+// parser reconstruct the content faithfully.
+async function cleanGoogleDocsHtml(html: string): Promise<string> {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+
+  const wrapper = doc.querySelector('b[id^="docs-internal-guid"]');
+  if (wrapper) {
+    wrapper.replaceWith(...Array.from(wrapper.childNodes));
+  }
+
+  // Reverse document order so an outer span's captured innerHTML already
+  // contains any inner span's converted semantic tags.
+  Array.from(doc.querySelectorAll("span[style]"))
+    .reverse()
+    .forEach((span) => {
+      const style = span.getAttribute("style") ?? "";
+      let innerHtml = span.innerHTML;
+
+      if (/text-decoration:\s*underline/i.test(style)) innerHtml = `<u>${innerHtml}</u>`;
+      if (/font-style:\s*italic/i.test(style)) innerHtml = `<em>${innerHtml}</em>`;
+      if (/font-weight:\s*(bold|[7-9]00)/i.test(style)) innerHtml = `<strong>${innerHtml}</strong>`;
+
+      span.outerHTML = innerHtml;
+    });
+
+  let imageUploadFailures = 0;
+
+  await Promise.all(
+    Array.from(doc.querySelectorAll("img")).map(async (img) => {
+      try {
+        const res = await fetch(img.src);
+        if (!res.ok) throw new Error("Fetch failed");
+
+        const blob = await res.blob();
+        const extension = blob.type.split("/")[1] ?? "png";
+        const file = new File([blob], `google-docs-image.${extension}`, { type: blob.type || "image/png" });
+
+        img.src = await uploadImageFile(file);
+      } catch (error) {
+        // Cross-origin fetch of Google's CDN can be blocked by CORS — fall
+        // back to the original URL so the image still renders.
+        imageUploadFailures++;
+        console.warn("Could not re-upload Google Docs image, keeping the original URL:", error);
+      }
+    })
+  );
+
+  if (imageUploadFailures > 0) {
+    toast.add({
+      title: imageUploadFailures > 1 ? `Kept ${imageUploadFailures} images linked to Google Docs.` : "Kept an image linked to Google Docs.",
+      description: "It couldn't be re-uploaded to our server, likely due to cross-origin restrictions.",
+      type: "warning",
+    });
+  }
+
+  return doc.body.innerHTML;
+}
+
+// Feed cleaned HTML back through Editor.js's own paste pipeline by dispatching
+// a synthetic ClipboardEvent at its actual paste target (the holder element),
+// rather than reimplementing HTML-to-block parsing ourselves.
+function dispatchClipboardPaste(target: HTMLElement, html: string) {
+  const plainText = new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
+
+  const dataTransfer = new DataTransfer();
+  dataTransfer.setData("text/html", html);
+  dataTransfer.setData("text/plain", plainText);
+
+  target.dispatchEvent(
+    new ClipboardEvent("paste", {
+      clipboardData: dataTransfer,
+      bubbles: true,
+      cancelable: true,
+    })
+  );
+}
+
 // editorjs-html ships no parser for the table tool we use, so provide one.
 function tableParser({ data }: OutputBlockData) {
   const rows = (data.content as string[][]) ?? [];
@@ -72,6 +158,7 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = React.useRef<any>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const holderRef = React.useRef<HTMLDivElement>(null);
   const holderId = React.useId().replace(/:/g, "");
 
   React.useEffect(() => {
@@ -266,25 +353,49 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
   // Upload every pasted image ourselves — Editor.js's built-in image paste
   // handling only reacts to the tool matching the currently focused block,
   // so a multi-file paste (e.g. several files copied from Finder) only
-  // uploads one image. Intercepting in the capture phase lets us take over
-  // whenever the clipboard contains images and leave text/HTML paste alone.
+  // uploads one image — and Google Docs pastes carry no image files at all,
+  // only HTML with <img> tags pointing at Google's CDN. Intercepting in the
+  // capture phase lets us take over whenever either case applies and leave
+  // plain text/HTML paste alone.
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handlePaste = (event: ClipboardEvent) => {
+      // Ignore the synthetic paste event we redispatch below, so Google Docs
+      // pastes don't get processed twice / loop.
+      if (!event.isTrusted) return;
+
+      const html = event.clipboardData?.getData("text/html") ?? "";
+      const isGoogleDocsPaste = isGoogleDocsHtml(html);
+
       const files = event.clipboardData?.files;
       const imageFiles = files
         ? Array.from(files).filter((file) => file.type.startsWith("image/"))
         : [];
 
-      if (imageFiles.length === 0) return;
+      if (!isGoogleDocsPaste && imageFiles.length === 0) return;
 
       event.preventDefault();
       event.stopPropagation();
 
       const editor = editorRef.current;
-      if (!editor) return;
+      const holder = holderRef.current;
+      if (!editor || !holder) return;
+
+      if (isGoogleDocsPaste) {
+        cleanGoogleDocsHtml(html)
+          .then((cleanedHtml) => dispatchClipboardPaste(holder, cleanedHtml))
+          .catch((error) => {
+            console.error("Failed to process Google Docs paste:", error);
+            toast.add({
+              title: "Failed to process pasted content.",
+              description: "Please try again.",
+              type: "error",
+            });
+          });
+        return;
+      }
 
       (async () => {
         const results = await Promise.allSettled(imageFiles.map(uploadImageFile));
@@ -335,7 +446,7 @@ const EditorJSComponent: React.FC<EditorJSProps> = ({
       ref={containerRef}
       className="prose border rounded-md p-4 bg-background [&_.embed-tool]:w-full [&_img]:max-w-full [&_img]:h-auto"
     >
-      <div id={`editorjs-${holderId}`} />
+      <div id={`editorjs-${holderId}`} ref={holderRef} />
     </div>
   );
 };
