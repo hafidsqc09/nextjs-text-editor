@@ -27,7 +27,6 @@ import { DOMParser as ProseMirrorDOMParser } from "prosemirror-model";
 import { Plugin } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 
-
 const FontSize = Extension.create({
   name: "fontSize",
   addOptions() {
