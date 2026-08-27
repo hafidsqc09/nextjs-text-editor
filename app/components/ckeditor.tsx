@@ -290,7 +290,6 @@ function createPasteHandlingPlugin(onUploadStart: () => void, onUploadEnd: () =>
         // ourselves once the images are ready.
         evt.stop();
         onUploadStart();
-        editor.enableReadOnlyMode("paste-image-upload");
 
         reuploadForeignImages(writer, foreignImages)
           .then((failures) => {
@@ -317,7 +316,6 @@ function createPasteHandlingPlugin(onUploadStart: () => void, onUploadEnd: () =>
             });
           })
           .finally(() => {
-            editor.disableReadOnlyMode("paste-image-upload");
             onUploadEnd();
           });
       },
@@ -326,7 +324,16 @@ function createPasteHandlingPlugin(onUploadStart: () => void, onUploadEnd: () =>
   };
 }
 
+// Lock id used to hold the editor in read-only mode while any image upload
+// (toolbar/drag-drop, or a paste-triggered re-upload) is in flight — enabled
+// once when the first upload starts and lifted once the last one finishes,
+// regardless of how many overlap, since CKEditor's readOnly lock set is
+// keyed by lock id rather than reference-counted.
+const UPLOAD_READ_ONLY_LOCK = "image-upload";
+
 const CKEditorComponent = () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorRef = React.useRef<any>(null);
   const [uploadCount, setUploadCount] = React.useState(0);
   const isUploading = uploadCount > 0;
 
@@ -338,12 +345,26 @@ const CKEditorComponent = () => {
     setUploadCount((count) => Math.max(0, count - 1));
   }, []);
 
+  React.useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    if (isUploading) {
+      editor.enableReadOnlyMode(UPLOAD_READ_ONLY_LOCK);
+    } else {
+      editor.disableReadOnlyMode(UPLOAD_READ_ONLY_LOCK);
+    }
+  }, [isUploading]);
+
   return (
     <div className="relative">
       <div className={isUploading ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}>
         <CKEditor
           editor={ClassicEditor}
           data="<p>CKEditor</p>"
+          onReady={(editor) => {
+            editorRef.current = editor;
+          }}
           onChange={(_event, editor) => {
             const data = editor.getData();
             console.log("CKEditor Content Changed:", data);
